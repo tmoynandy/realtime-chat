@@ -1,52 +1,71 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { Test, TestingModule } from "@nestjs/testing";
-import { UserController } from "./user.controller";
-import { UserNestService } from "./user.service";
+import { describe, it, expect, vi } from "vitest";
+import { userRoutes } from "./user.route";
 
 const mockItem = { id: "test-id-1", email: "test-value", name: "test-value", createdAt: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
 
-describe("UserController", () => {
-  let controller: UserController;
-  const mockService = {
-    list: vi.fn().mockResolvedValue({ items: [mockItem], total: 1, page: 1, pageSize: 20 }),
-    getById: vi.fn().mockImplementation((id: string) =>
-      Promise.resolve(id === "test-id-1" ? mockItem : null)
-    ),
-    create: vi.fn().mockImplementation((dto: unknown) => Promise.resolve({ id: "test-id-1", ...(dto as object) })),
-    update: vi.fn().mockImplementation((id: string, dto: unknown) => Promise.resolve({ id, ...(dto as object) })),
-    remove: vi.fn().mockResolvedValue(undefined),
-  };
+vi.mock("../services/user.service", () => ({
+  listUser: vi.fn().mockResolvedValue({ items: [mockItem], total: 1, page: 1, pageSize: 20 }),
+  getUserById: vi.fn().mockImplementation((id: string) =>
+    Promise.resolve(id === "test-id-1" ? mockItem : null)
+  ),
+  createUser: vi.fn().mockResolvedValue(mockItem),
+  updateUser: vi.fn().mockImplementation((id: string, data: unknown) =>
+    Promise.resolve(id === "test-id-1" ? { ...mockItem, ...(data as object) } : null)
+  ),
+  deleteUser: vi.fn().mockResolvedValue(undefined),
+}));
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [UserController],
-      providers: [{ provide: UserNestService, useValue: mockService }],
-    }).compile();
-    controller = module.get<UserController>(UserController);
+describe("User routes", () => {
+  it("GET / → 200 with items", async () => {
+    const res = await userRoutes.request("/");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.items).toHaveLength(1);
   });
 
-  it("list returns paginated result", async () => {
-    const result = await controller.list({});
-    expect(result).toHaveProperty("items");
+  it("GET /:id → 200 when found", async () => {
+    const res = await userRoutes.request("/test-id-1");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.id).toBe("test-id-1");
   });
 
-  it("getById returns item", async () => {
-    const result = await controller.getById("test-id-1");
-    expect(result).toHaveProperty("id");
+  it("GET /:id → 404 when not found", async () => {
+    const res = await userRoutes.request("/nonexistent");
+    expect(res.status).toBe(404);
   });
 
-  it("create returns new item", async () => {
-    const result = await controller.create({ email: "test-value", name: "test-value", createdAt: new Date().toISOString() } as unknown);
-    expect(result).toHaveProperty("id");
+  it("POST / → 201 with created item", async () => {
+    const res = await userRoutes.request("/", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "test-value", name: "test-value", createdAt: new Date().toISOString() }),
+    });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.id).toBe("test-id-1");
   });
 
-  it("update returns updated item", async () => {
-    const result = await controller.update("test-id-1", { email: "test-value", name: "test-value", createdAt: new Date().toISOString() } as unknown);
-    expect(result).toHaveProperty("id");
+  it("PATCH /:id → 200 when found", async () => {
+    const res = await userRoutes.request("/test-id-1", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "test-value", name: "test-value", createdAt: new Date().toISOString() }),
+    });
+    expect(res.status).toBe(200);
   });
 
-  it("remove returns void", async () => {
-    const result = await controller.remove("test-id-1");
-    expect(result).toBeUndefined();
+  it("PATCH /:id → 404 when not found", async () => {
+    const res = await userRoutes.request("/nonexistent", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "test-value", name: "test-value", createdAt: new Date().toISOString() }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("DELETE /:id → 204", async () => {
+    const res = await userRoutes.request("/test-id-1", { method: "DELETE" });
+    expect(res.status).toBe(204);
   });
 });
