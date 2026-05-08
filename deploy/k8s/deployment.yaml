@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: realtime-chat
+  labels:
+    app: realtime-chat
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: realtime-chat
+  template:
+    metadata:
+      labels:
+        app: realtime-chat
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/your-org/realtime-chat:latest
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: realtime-chat-env
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 2
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 5
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits:   { cpu: 1,    memory: 512Mi }
